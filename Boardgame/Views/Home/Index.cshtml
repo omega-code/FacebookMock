@@ -1,0 +1,21 @@
+﻿@model IReadOnlyCollection<DataLayer.Models.Product>
+
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="row">
+    @foreach (var mod in Model)
+    {
+        <div class="col">
+            <div class="card" style="width: 18rem;">
+                <img class="card-img-top" src="http://lorempixel.com/300/300/" alt="Card image cap">
+                <div class="card-body">
+                    <h5 class="card-title">@mod.Title</h5>
+                    <p class="card-text">@mod.Description</p>
+                    <a href="#" class="btn btn-primary">Go somewhere</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
