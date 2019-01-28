@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Bogus;
 using DataLayer.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -52,11 +53,21 @@ namespace Boardgame.Controllers.Service
                 lst.Add($"{count} Lead campaigns have been seeded.");
             }
 
-            if (!_dbContext.LeadCampaignInsights.Any())
+            var errorCount = _dbContext.FacebookPages.Count();
+            var failProbability = 0.7F;
+            var iteration1 = new LeadCampaignInsightsConfiguration().Seed(_dbContext, errorCount, failProbability);
+
+            var pages = _dbContext.FacebookPages.Where(r => r.Deactivated).ToArray();
+            foreach (var page in pages)
             {
-                var count = new LeadCampaignInsightsConfiguration().Seed(_dbContext);
-                lst.Add($"{count} Lead insights have been seeded.");
+                page.Deactivated = false;
+                _dbContext.Update(page);
+                _dbContext.SaveChanges();
             }
+            var reactivated = pages.Count();
+
+            var iteration2 = new LeadCampaignInsightsConfiguration().Seed(_dbContext, 0, 0F);
+            var iteration3 = new LeadCampaignInsightsConfiguration().Seed(_dbContext, 0, 0F);
 
             if (lst.Count == 0)
             {
@@ -64,12 +75,12 @@ namespace Boardgame.Controllers.Service
             }
 
 
-            return Json(lst);
+            return Json(new { iteration1, reactivated, iteration2, iteration3 });
         }
 
         public IActionResult CleanInsights()
         {
-            var lst = new[] { nameof(_dbContext.LeadCampaignInsights), nameof(_dbContext.LeadCampaigns), nameof(_dbContext.FacebookPages), };
+            var lst = new[] { nameof(_dbContext.InsightsLoaderState), nameof(_dbContext.LeadCampaignInsights), nameof(_dbContext.LeadCampaigns), nameof(_dbContext.FacebookPages), };
 
             try
             {

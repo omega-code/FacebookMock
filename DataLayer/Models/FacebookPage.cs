@@ -26,7 +26,7 @@ namespace DataLayer.Models
         {
             var accountIds = new List<long>();
             var bog = new Faker();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 5; i++)
             {
                 accountIds.Add(bog.Random.Long(0, 50000));
             }
@@ -37,7 +37,7 @@ namespace DataLayer.Models
                 .RuleFor(r => r.AdAccountId, f => f.PickRandom(accountIds))
                 .RuleFor(r => r.Deactivated, f => false);
 
-            var elements = faker.Generate(9);
+            var elements = faker.Generate(18);
 
             context.AddRange(elements);
             context.SaveChanges();

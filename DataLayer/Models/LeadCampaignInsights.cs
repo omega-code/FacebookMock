@@ -16,7 +16,7 @@ namespace DataLayer.Models
         public DateTime Date { get; set; }
     }
 
-    public class LeadCampaignInsightsConfiguration : BaseConfiguration<LeadCampaignInsights>, ISeedable
+    public class LeadCampaignInsightsConfiguration : BaseConfiguration<LeadCampaignInsights>
     {
         public override void Configure(EntityTypeBuilder<LeadCampaignInsights> builder)
         {
@@ -28,36 +28,120 @@ namespace DataLayer.Models
 
             builder.HasIndex(r => r.LeadCampaignId);
             builder.HasIndex(r => r.Date);
+
+            builder.HasIndex(r => new { r.LeadCampaignId, r.Date }).IsUnique();
         }
 
-        public int Seed(AppDbContext context)
+        public List<object> Seed(AppDbContext context, int maxErrorCount, float failProbability)
         {
-            var date = DateTime.Today.AddDays(-30);
-            var booler = new Faker();
+            var debugLst = new List<object>();
 
-            var faker = new Faker<LeadCampaignInsights>()
+            var startDate = DateTime.Today.AddDays(-30);
+
+            var insightsFaker = new Faker<LeadCampaignInsights>()
                 .RuleFor(r => r.Id, f => Guid.NewGuid())
-                .RuleFor(r => r.LeadCampaign, f => context.LeadCampaigns.OrderBy(r => Guid.NewGuid()).First())
-                .RuleFor(r => r.AmountSpent, f => f.Random.UInt(0, 20000))
-                .RuleFor(r => r.Date, f => date);
+                .RuleFor(r => r.AmountSpent, f => f.Random.UInt(0, 20000));
+
+            var oldStateData = context.InsightsLoaderState.Where(r => r.Date < startDate);
+            context.RemoveRange(oldStateData);
+            context.SaveChanges();
+
+            var actualStateData = context.InsightsLoaderState.ToArray();
+            var groupedPages = context.FacebookPages
+                .Where(r => !r.Deactivated)
+                .AsEnumerable()
+                .GroupBy(r => r.AdAccountId);
+            var totalAccounts = groupedPages.Count();
+
+            var errorCount = 0;
 
             var lst = new List<LeadCampaignInsights>();
-            while (date <= DateTime.Today)
+            for (DateTime date = startDate; date <= DateTime.Today; date = date.AddDays(1))
             {
-                // Чистим таблицу InsightsLoaderState (всё что старше 30 дней)
-                // Группируем страницы по adAccountId
-                // Внутри каждой группы либо грузим инсайты, либо вылетаем с ошибкой и отключаем страницу.
-                // После загрузки инсайтов пишемся в insightsLoaderState и переходим к следующему AdAccountId, независимо от количества оставшихся страниц.
-                // Если в стейте по данному AdAccountId есть успешная запись, переходим к следующему AdAccountId.
+                debugLst.Add($"Started Date {date}....................................");
 
+                var loadedSuccessfully = 0;
+                var skipped = 0;
+                var failed = 0;
+                foreach (var currentAccountId in groupedPages)
+                {
+                    //debugLst.Add($"Started account {currentAccountId.Key}");
+                    if (actualStateData.Where(r => r.Success && r.AdAccountId == currentAccountId.Key && r.Date == date).Count() > 0)
+                    {
+                        //debugLst.Add($"Account id {currentAccountId.Key} for date {date} is already loaded. Skipping...");
+                        skipped++;
+                        continue;
+                    }
 
-                lst.Add(faker.Generate());
-                date = date.AddDays(1);
+                    foreach (var currentPage in currentAccountId)
+                    {
+
+                        if (errorCount < maxErrorCount && !new Faker().Random.Bool(failProbability))
+                        {
+                            //debugLst.Add($"Page {currentPage.Id} skipped and deactivated.");
+                            SaveInsightsState(date, currentAccountId.Key, false, context);
+                            DeactivateFacebookPage(currentPage, context);
+                            failed++;
+                            errorCount++;
+                            continue;
+                        }
+
+                        var insights = insightsFaker.Generate();
+                        insights.AdAccountId = currentPage.AdAccountId;
+                        insights.LeadCampaign = context.LeadCampaigns.Where(r => r.FacebookPageId == currentPage.Id).OrderBy(r => Guid.NewGuid()).First();
+                        insights.Date = date;
+                        //debugLst.Add($"Adding insights to database...");
+                        loadedSuccessfully++;
+                        //debugLst.Add(insights);
+                        context.LeadCampaignInsights.Add(insights);
+                        context.SaveChanges();
+                        SaveInsightsState(date, currentAccountId.Key, true, context);
+                        break;
+                    }
+                }
+                debugLst.Add($"Total: {totalAccounts}, Loaded from API: {loadedSuccessfully}, Already been loaded: {skipped}, Failed pages: {failed}");
             }
 
-            context.AddRange(lst);
+            var data = new { Insights = context.LeadCampaignInsights.ToArray(), LoaderState = context.InsightsLoaderState.ToArray(), Pages = context.FacebookPages.ToArray() };
+            //return new { Data = data, Log = debugLst };
+            return debugLst;
+        }
+
+        private void SaveInsightsState(DateTime date, long adAccountId, bool success, AppDbContext context)
+        {
+            var createNew = false;
+            var state = context.InsightsLoaderState.FirstOrDefault(r => r.Date == date && r.AdAccountId == adAccountId);
+
+            if (state == null)
+            {
+                state = new InsightsLoaderState
+                {
+                    Id = Guid.NewGuid(),
+                    AdAccountId = adAccountId,
+                    Date = date,
+                };
+                createNew = true;
+            }
+
+            state.Success = success;
+
+            if (createNew)
+            {
+                context.InsightsLoaderState.Add(state);
+            }
+            else
+            {
+                context.InsightsLoaderState.Update(state);
+            }
+
             context.SaveChanges();
-            return lst.Count;
+        }
+
+        private void DeactivateFacebookPage(FacebookPage page, AppDbContext context)
+        {
+            page.Deactivated = true;
+            context.FacebookPages.Update(page);
+            context.SaveChanges();
         }
     }
 }

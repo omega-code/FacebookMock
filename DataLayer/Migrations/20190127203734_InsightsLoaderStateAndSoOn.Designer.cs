@@ -4,14 +4,16 @@ using DataLayer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace DataLayer.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20190127203734_InsightsLoaderStateAndSoOn")]
+    partial class InsightsLoaderStateAndSoOn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -107,8 +109,6 @@ namespace DataLayer.Migrations
 
                     b.Property<DateTime>("CreatedTime");
 
-                    b.Property<Guid>("FacebookPageId");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(85);
@@ -119,8 +119,6 @@ namespace DataLayer.Migrations
                     b.Property<DateTime>("UpdatedTime");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("FacebookPageId");
 
                     b.ToTable("LeadCampaigns");
                 });
@@ -150,9 +148,6 @@ namespace DataLayer.Migrations
                     b.HasIndex("Date");
 
                     b.HasIndex("LeadCampaignId");
-
-                    b.HasIndex("LeadCampaignId", "Date")
-                        .IsUnique();
 
                     b.ToTable("LeadCampaignInsights");
                 });
@@ -202,14 +197,6 @@ namespace DataLayer.Migrations
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("DataLayer.Models.LeadCampaign", b =>
-                {
-                    b.HasOne("DataLayer.Models.FacebookPage", "FacebookPage")
-                        .WithMany()
-                        .HasForeignKey("FacebookPageId")
-                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("DataLayer.Models.LeadCampaignInsights", b =>

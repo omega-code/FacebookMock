@@ -17,6 +17,7 @@ namespace DataLayer
         public DbSet<LeadCampaign> LeadCampaigns { get; set; }
         public DbSet<LeadCampaignInsights> LeadCampaignInsights { get; set; }
         public DbSet<FacebookPage> FacebookPages { get; set; }
+        public DbSet<InsightsLoaderState> InsightsLoaderState { get; set; }
 
         #endregion
 
@@ -33,12 +34,13 @@ namespace DataLayer
             modelBuilder.ApplyConfiguration(new LeadCampaignConfiguration());
             modelBuilder.ApplyConfiguration(new LeadCampaignInsightsConfiguration());
             modelBuilder.ApplyConfiguration(new FacebookPageConfiguration());
+            modelBuilder.ApplyConfiguration(new InsightsLoaderStateConfiguration());
         }
 
         public override int SaveChanges()
         {
             AddTimestamps();
-            return base.SaveChanges();
+           return base.SaveChanges();
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
